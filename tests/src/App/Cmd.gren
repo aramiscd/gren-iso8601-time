@@ -1,0 +1,103 @@
+module App.Cmd exposing ( .. )
+
+import App.Msg exposing ( Msg )
+import Bytes exposing ( Bytes )
+import DateTime
+import Expect exposing ( Expectation )
+import Iso8601
+import Math
+import Stream
+import Task exposing ( Task )
+import Test.Runner
+import Time
+import Tracks.Expect
+import Tracks.Iso8601
+import Tracks.PosixTime
+
+
+testPosixTimeIdentity : Stream.Writable Bytes -> Time.Posix -> Cmd Msg
+testPosixTimeIdentity toStream pt =
+    Tracks.Expect.posixTimeIdentity pt
+    |> Task.succeed
+    |> Task.andThen ( printResult toStream )
+    |> Task.perform App.Msg.CollectTestResult
+
+
+testUtcTimestampIdentity : Stream.Writable Bytes -> String -> Cmd Msg
+testUtcTimestampIdentity toStream ts =
+    Tracks.Expect.utcTimestampIdentity ts
+    |> Task.succeed
+    |> Task.andThen ( printResult toStream )
+    |> Task.perform App.Msg.CollectTestResult
+
+
+testUtcTimestampInc : Stream.Writable Bytes -> String -> Cmd Msg
+testUtcTimestampInc toStream ts =
+    Tracks.Expect.iso8601Inc ts
+    |> Task.succeed
+    |> Task.andThen ( printResult toStream )
+    |> Task.perform App.Msg.CollectTestResult
+
+
+testExamples : Stream.Writable Bytes -> Array Expectation -> Cmd Msg
+testExamples toStream expectations =
+    Tracks.Expect.example expectations
+    |> Task.succeed
+    |> Task.andThen ( printResult toStream )
+    |> Task.perform App.Msg.CollectTestResult
+
+
+printTestResults : Stream.Writable Bytes -> Array Tracks.Expect.Failure -> Cmd Msg
+printTestResults toStream failures =
+    let
+        printFailed =
+            failures
+            |> Array.map ( \ failure -> Debug.toString failure.reason )
+            |> String.join "\n"
+
+        report =
+            if Array.length failures == 0
+            then "\nSuccess!\nNo failed tests!"
+            else "\n" ++ String.fromInt ( Array.length failures ) ++ " failed tests!\n" ++ printFailed
+    in
+        Stream.writeLineAsBytes report toStream
+        |> Task.onError ( \ _ -> Task.succeed toStream )
+        |> Task.andThen ( \ _ -> Task.succeed {} )
+        |> Task.execute
+    
+
+printResult : Stream.Writable Bytes -> Tracks.Expect.Result -> Task Never Tracks.Expect.Result
+printResult toStream r =
+    let
+        testCase =
+            when r is
+                Tracks.Expect.Success tc -> tc
+                Tracks.Expect.Failure args -> args.testCase
+
+        report =
+            when testCase is
+                Tracks.Expect.Iso8601Identity ts ->
+                    "Test Iso8601Identity " ++ Tracks.Iso8601.printProgress ts ++ " " ++ ts
+
+                Tracks.Expect.Iso8601Inc ts ->
+                    "Test Iso8601Inc " ++ Tracks.Iso8601.printProgress ts ++ " " ++ ts
+
+                Tracks.Expect.PosixTimeIdentity pt ->
+                    "Test PosixTimeIdentity " ++ Tracks.PosixTime.printProgress pt
+                    ++ " " ++ String.fromInt ( Time.posixToMillis pt )
+
+                Tracks.Expect.Example expectations ->
+                    when Array.popFirst expectations is
+                        Just { first, rest } ->
+                            toFloat ( Array.length expectations ) / toFloat ( Array.length Tracks.Expect.examples )
+                            |> ( \ x -> 1 - x )
+                            |> (*) 100
+                            |> Math.round
+                            |> String.fromInt
+                            |> ( \ x -> "Test Example " ++ String.padLeft 3 ' ' x ++ "%" )
+                        Nothing ->
+                            "Error: empty list!"
+    in
+        Stream.writeLineAsBytes report toStream
+        |> Task.onError ( \ _ -> Task.succeed toStream )
+        |> Task.andThen ( \ _ -> Task.succeed r )

@@ -1,0 +1,39 @@
+module Tracks.Iso8601 exposing ( minValue, maxValue, inc, printProgress )
+
+import DateTime
+import Iso8601
+import Time
+import Tracks.PosixTime
+
+
+minValue : String
+minValue =
+    "1970-01-01T00:00:00.000Z"
+
+
+maxValue : String
+maxValue =
+    "9999-12-31T23:59:59.999Z"
+
+
+inc : Int -> String -> Maybe String
+inc n ts =
+    when DateTime.fromIso8601 ts is
+        Nothing -> Nothing
+        Just dt ->
+            let
+                nextMillis = dt |> DateTime.toPosix |> Time.posixToMillis |> (+) n
+            in
+                if
+                    nextMillis > Time.posixToMillis Tracks.PosixTime.maxValue
+                then
+                    Nothing
+                else
+                    Just <| Iso8601.fromPosix <| Time.millisToPosix <| nextMillis
+
+
+printProgress : String -> String
+printProgress ts =
+    when Iso8601.toPosix ts is
+        Nothing -> "Fehler: ungültiger Zeitstempel!"
+        Just pt -> Tracks.PosixTime.printProgress pt

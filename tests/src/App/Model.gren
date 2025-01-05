@@ -1,0 +1,17 @@
+module App.Model exposing ( Model, init )
+
+import Node
+import Tracks.Expect
+
+
+type alias Model =
+    { env : Node.Environment
+    , failures : Array Tracks.Expect.Failure
+    }
+
+
+init : Node.Environment -> Model
+init env =
+    { env = env
+    , failures = []
+    }

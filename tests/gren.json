@@ -1,0 +1,20 @@
+{
+    "type": "application",
+    "platform": "node",
+    "source-directories": [
+        "src",
+        "../src"
+    ],
+    "gren-version": "0.5.2",
+    "dependencies": {
+        "direct": {
+            "aramiscd/gren-parse": "1.3.0",
+            "gren-lang/core": "6.0.0",
+            "gren-lang/node": "5.0.0",
+            "gren-lang/test": "4.0.0"
+        },
+        "indirect": {
+            "gren-lang/url": "5.0.0"
+        }
+    }
+}

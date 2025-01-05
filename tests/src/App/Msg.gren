@@ -1,0 +1,12 @@
+module App.Msg exposing ( Msg (..) )
+
+import Time
+import Tracks.Expect
+
+
+type Msg
+    = CollectTestResult Tracks.Expect.Result
+    | NextTestCase { testCase : Tracks.Expect.TestCase, step : Int }
+    | TestPosixTimeIdentity Time.Posix
+    | TestUtcTimestampIdentity String
+    | TestUtcTimestampInc String

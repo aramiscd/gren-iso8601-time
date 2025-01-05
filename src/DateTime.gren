@@ -1,0 +1,344 @@
+module DateTime exposing
+    ( DateTime
+    , zero
+    , fromIso8601
+    , toIso8601
+    , fromPosix
+    , toPosix
+    , daysInMonth
+    , daysInYear
+    , isLeapYear
+    )
+
+import Math exposing ( modBy )
+import Parse exposing ( Parser )
+import Time
+
+
+type alias DateTime =
+    { year : Int
+    , month : Int
+    , day : Int
+    , hour : Int
+    , minute : Int
+    , second : Int
+    , millis : Int
+    }
+
+
+zero =
+    { year = 1970
+    , month = 1
+    , day = 1
+    , hour = 0
+    , minute = 0
+    , second = 0
+    , millis = 0
+    }
+
+
+fromIso8601 : String -> Maybe DateTime
+fromIso8601 =
+    Parse.sequence
+        [ calendarDate
+        , Parse.sequence [ Parse.string "T" |> discard, time ]
+        , Parse.string "Z" |> discard
+        ]
+    |> Parse.andThen
+        ( \ r ->
+            when r.values is
+                [ d, t ] -> Just
+                    { backlog = r.backlog
+                    , values =
+                        [ { year = d.year
+                          , month = d.month
+                          , day = d.day
+                          , hour = t.hour
+                          , minute = t.minute
+                          , second = t.second
+                          , millis = t.millis
+                          }
+                        ]
+                    }
+                _ -> Nothing
+        )
+    |> Parse.run
+
+
+toIso8601 : DateTime -> String
+toIso8601 dt =
+    String.fromInt dt.year
+    ++ "-" ++ String.padLeft 2 '0' ( String.fromInt dt.month )
+    ++ "-" ++ String.padLeft 2 '0' ( String.fromInt dt.day )
+    ++ "T" ++ String.padLeft 2 '0' ( String.fromInt dt.hour )
+    ++ ":" ++ String.padLeft 2 '0' ( String.fromInt dt.minute )
+    ++ ":" ++ String.padLeft 2 '0' ( String.fromInt dt.second )
+    ++ "." ++ String.padLeft 3 '0' ( String.fromInt dt.millis )
+    ++ "Z"
+
+
+fromPosix : Time.Posix -> DateTime
+fromPosix pt =
+    fromPosix_ { zero | millis = Time.posixToMillis pt }
+
+
+-- Verteile Millisekunden auf die anderen Felder
+fromPosix_ : DateTime -> DateTime
+fromPosix_ dt =
+    if dt.millis < msInSec then dt
+    else if dt.millis >= msInYear dt then fromPosix_ { dt | year = dt.year + 1, millis = dt.millis - msInYear dt }
+    else if dt.millis >= msInMonth dt then fromPosix_ { dt | month = dt.month + 1, millis = dt.millis - msInMonth dt }
+    else if dt.millis >= msInDay then fromPosix_ { dt | day = dt.day + 1, millis = dt.millis - msInDay }
+    else if dt.millis >= msInHour then fromPosix_ { dt | hour = dt.hour + 1, millis = dt.millis - msInHour }
+    else if dt.millis >= msInMin then fromPosix_ { dt | minute = dt.minute + 1, millis = dt.millis - msInMin }
+    else fromPosix_ { dt | second = dt.second + 1, millis = dt.millis - msInSec }
+
+
+toPosix : DateTime -> Time.Posix
+toPosix dt =
+    dt
+    |> toPosix_
+    |> .millis
+    |> Time.millisToPosix
+
+
+-- Sammle Millisekunden aus den anderen Feldern
+toPosix_ : DateTime -> DateTime
+toPosix_ dt =
+    let
+        lastMonth = { zero | month = dt.month - 1 } -- Achtung: nur innerhalb des Jahres!
+        lastYear = { zero | year = dt.year - 1 }
+        leapYearException = dt.day > 0 && isLeapYear dt.year && dt.month > 2
+    in
+        if dt.second > 0 then toPosix_ { dt | second = 0, millis = dt.millis + msInSec * dt.second }
+        else if dt.minute > 0 then toPosix_ { dt | minute = 0, millis = dt.millis + msInMin * dt.minute }
+        else if dt.hour > 0 then toPosix_ { dt | hour = 0, millis = dt.millis + msInHour * dt.hour }
+        else if leapYearException then toPosix_ { dt | day = 0, millis = dt.millis + msInDay * dt.day }
+        else if dt.day > 0 then toPosix_ { dt | day = 0, millis = dt.millis + msInDay * ( dt.day - 1 ) }
+        else if dt.month > 1 then toPosix_ { dt | month = dt.month - 1, millis = dt.millis + msInMonth lastMonth }
+        else if dt.year > 1970 then toPosix_ { dt | year = dt.year - 1, millis = dt.millis + msInYear lastYear }
+        else dt
+
+
+daysInMonth : DateTime -> Int
+daysInMonth dt =
+    when dt.month is
+        1 -> 31
+        2 -> if isLeapYear dt.year then 29 else 28
+        3 -> 31
+        4 -> 30
+        5 -> 31
+        6 -> 30
+        7 -> 31
+        8 -> 31
+        9 -> 30
+        10 -> 31
+        11 -> 30
+        12 -> 31
+        _ -> -1
+
+
+daysInYear : Int -> Int
+daysInYear y =
+    if isLeapYear y then 366 else 365
+
+
+isLeapYear : Int -> Bool
+isLeapYear y =
+    modBy 4 y == 0 && ( modBy 100 y /= 0 || modBy 400 y == 0 )
+
+
+
+-- Intermediate Parsers
+
+
+calendarDate : Parser DateTime
+calendarDate =
+    Parse.sequence
+        [ year  |> toInt
+        , minus |> discard
+        , month |> toInt
+        , minus |> discard
+        , day   |> toInt
+        ]
+    |> Parse.andThen
+        ( \ r ->
+            when r.values is
+                [ y, m, d ] -> Just
+                    { backlog = r.backlog
+                    , values = [ { zero | year = y, month = m, day = d } ]
+                    }
+                _ -> Nothing
+        )
+
+
+time : Parser DateTime
+time =
+    Parse.sequence
+        [ hour   |> toInt
+        , colon  |> discard
+        , minute |> toInt
+        , colon  |> discard
+        , second |> toInt
+        , dot    |> discard
+        , millis |> toInt
+        ]
+    |> Parse.andThen
+        ( \ r ->
+            when r.values is
+                [ h, m, s, ms ] -> Just
+                    { backlog = r.backlog
+                    , values = [ { zero | hour = h, minute = m, second = s, millis = ms } ]
+                    }
+                _ -> Nothing
+        )
+
+
+year : Parser String
+year =
+    Parse.sequence [ digit, digit, digit, digit ]
+
+
+month : Parser String
+month =
+    Parse.oneOf
+        [ Parse.sequence [ Parse.string "0", oneNine ]
+        , Parse.string "10"
+        , Parse.string "11"
+        , Parse.string "12"
+        ]
+
+
+day : Parser String
+day =
+    Parse.oneOf
+        [ Parse.sequence [ Parse.string "0", oneNine ]
+        , Parse.sequence [ Parse.string "1", digit ]
+        , Parse.sequence [ Parse.string "2", digit ]
+        , Parse.string "30"
+        , Parse.string "31"
+        ] 
+
+
+hour : Parser String
+hour =
+    Parse.oneOf
+        [ Parse.sequence [ Parse.string "0", digit ]
+        , Parse.sequence [ Parse.string "1", digit ]
+        , Parse.string "20"
+        , Parse.string "21"
+        , Parse.string "22"
+        , Parse.string "23"
+        ]
+
+
+minute : Parser String
+minute =
+    Parse.sequence [ zeroFive, digit ]
+
+
+second : Parser String
+second =
+    Parse.sequence [ zeroFive, digit ]
+
+
+millis : Parser String
+millis =
+    Parse.sequence [ digit, digit, digit ]
+
+
+digit : Parser String
+digit =
+    Parse.oneOf [ Parse.string "0", oneNine ]
+
+
+oneNine : Parser String
+oneNine =
+    Parse.oneOf
+        [ Parse.string "1"
+        , Parse.string "2"
+        , Parse.string "3"
+        , Parse.string "4"
+        , Parse.string "5"
+        , Parse.string "6"
+        , Parse.string "7"
+        , Parse.string "8"
+        , Parse.string "9"
+        ]
+
+
+zeroFive : Parser String
+zeroFive =
+    Parse.oneOf
+        [ Parse.string "0"
+        , Parse.string "1"
+        , Parse.string "2"
+        , Parse.string "3"
+        , Parse.string "4"
+        , Parse.string "5"
+        ]
+
+
+dot : Parser String
+dot =
+    Parse.string "."
+
+
+colon : Parser String
+colon =
+    Parse.string ":"
+
+
+minus : Parser String
+minus =
+    Parse.string "-"
+
+
+toInt : Parser String -> Parser Int
+toInt =
+    Parse.andThen
+        ( \ r ->
+            r.values
+            |> String.join ""
+            |> String.toInt
+            |> Maybe.andThen ( \ int -> Just { backlog = r.backlog, values = [ int ] } )
+        )
+
+
+discard : Parser a -> Parser b
+discard =
+    Parse.map ( \ _ -> [] )
+
+
+
+-- Time Helpers
+
+    
+msInSec : Int
+msInSec =
+    1000
+
+
+msInMin : Int
+msInMin =
+    60 * msInSec
+
+
+msInHour : Int
+msInHour =
+    60 * msInMin
+
+
+msInDay : Int
+msInDay =
+    24 * msInHour
+
+
+msInMonth : DateTime -> Int
+msInMonth dt =
+    daysInMonth dt * msInDay
+
+
+msInYear : DateTime -> Int
+msInYear dt =
+    daysInYear dt.year * msInDay

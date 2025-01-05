@@ -1,0 +1,58 @@
+module DateTime.Random exposing ( gen )
+
+import DateTime exposing ( DateTime )
+import Random
+
+
+gen : Random.Generator DateTime
+gen =
+    Random.constant DateTime.zero
+    |> Random.andThen ( \ dt1 -> year    |> Random.map ( \ dt2 -> { dt1 | year   = dt2.year   } ) )
+    |> Random.andThen ( \ dt1 -> month   |> Random.map ( \ dt2 -> { dt1 | month  = dt2.month  } ) )
+    |> Random.andThen ( \ dt1 -> day dt1 |> Random.map ( \ dt2 -> { dt1 | day    = dt2.day    } ) )
+    |> Random.andThen ( \ dt1 -> hour    |> Random.map ( \ dt2 -> { dt1 | hour   = dt2.hour   } ) )
+    |> Random.andThen ( \ dt1 -> minute  |> Random.map ( \ dt2 -> { dt1 | minute = dt2.minute } ) )
+    |> Random.andThen ( \ dt1 -> second  |> Random.map ( \ dt2 -> { dt1 | second = dt2.second } ) )
+    |> Random.andThen ( \ dt1 -> millis  |> Random.map ( \ dt2 -> { dt1 | millis = dt2.millis } ) )
+
+
+year : Random.Generator DateTime
+year =
+    Random.int 1970 9999
+    |> Random.map ( \ x -> { DateTime.zero | year = x } )
+
+
+month : Random.Generator DateTime
+month =
+    Random.int 1 12
+    |> Random.map ( \ x -> { DateTime.zero | month = x } )
+
+
+day : DateTime -> Random.Generator DateTime
+day dt =
+    Random.int 1 ( DateTime.daysInMonth dt )
+    |> Random.map ( \ x -> { DateTime.zero | day = x } )
+
+
+hour : Random.Generator DateTime
+hour =
+    Random.int 0 23
+    |> Random.map ( \ x -> { DateTime.zero | hour = x } )
+
+
+minute : Random.Generator DateTime
+minute =
+    Random.int 0 59
+    |> Random.map ( \ x -> { DateTime.zero | minute = x } )
+
+
+second : Random.Generator DateTime
+second =
+    Random.int 0 59
+    |> Random.map ( \ x -> { DateTime.zero | second = x } )
+
+
+millis : Random.Generator DateTime
+millis =
+    Random.int 0 999
+    |> Random.map ( \ x -> { DateTime.zero | millis = x } )

@@ -1,0 +1,102 @@
+module Tracks.Expect exposing ( .. )
+
+import Expect exposing ( Expectation )
+import Iso8601
+import Test.Runner
+import Test.Runner.Failure
+import Time
+import Tracks.Iso8601
+import Tracks.PosixTime
+
+
+posixTimeIdentity : Time.Posix -> Result
+posixTimeIdentity pt =
+    pt
+    |> Iso8601.fromPosix
+    |> Iso8601.toPosix
+    |> Expect.equal ( Just pt )
+    |> run ( PosixTimeIdentity pt )
+
+
+utcTimestampIdentity : String -> Result
+utcTimestampIdentity ts =
+    ts
+    |> Iso8601.toPosix
+    |> Maybe.map Iso8601.fromPosix
+    |> Expect.equal ( Just ts )
+    |> run ( Iso8601Identity ts )
+
+
+iso8601Inc : String -> Result
+iso8601Inc ts =
+    ts
+    |> Iso8601.toPosix
+    |> Maybe.andThen ( Tracks.PosixTime.inc 1 )
+    |> Maybe.map Iso8601.fromPosix
+    |> Expect.equal ( Tracks.Iso8601.inc 1 ts )
+    |> run ( Iso8601Inc ts )
+
+
+example : Array Expectation -> Result
+example expectations =
+    when Array.popFirst expectations is
+        Nothing -> Success ( Example [] )
+        Just { first, rest } -> run ( Example expectations ) first
+
+
+examples : Array Expectation
+examples =
+    [ Time.millisToPosix 0 |> Iso8601.fromPosix |> Expect.equal "1970-01-01T00:00:00.000Z"
+    , Time.millisToPosix 31535999999 |> Iso8601.fromPosix |> Expect.equal "1970-12-31T23:59:59.999Z"
+    , Time.millisToPosix 31536000000 |> Iso8601.fromPosix |> Expect.equal "1971-01-01T00:00:00.000Z"
+    , Time.millisToPosix 63071999999 |> Iso8601.fromPosix |> Expect.equal "1971-12-31T23:59:59.999Z"
+    , Time.millisToPosix 63072000000 |> Iso8601.fromPosix |> Expect.equal "1972-01-01T00:00:00.000Z"
+    , Time.millisToPosix 94694399999 |> Iso8601.fromPosix |> Expect.equal "1972-12-31T23:59:59.999Z"
+    , Time.millisToPosix 915148800000 |> Iso8601.fromPosix |> Expect.equal "1999-01-01T00:00:00.000Z"
+    , Time.millisToPosix 946684799999 |> Iso8601.fromPosix |> Expect.equal "1999-12-31T23:59:59.999Z"
+    , Time.millisToPosix 32472144000000 |> Iso8601.fromPosix |> Expect.equal "2999-01-01T00:00:00.000Z"
+    , Time.millisToPosix 32503679999999 |> Iso8601.fromPosix |> Expect.equal "2999-12-31T23:59:59.999Z"
+    , Time.millisToPosix 253370764800000 |> Iso8601.fromPosix |> Expect.equal "9999-01-01T00:00:00.000Z"
+    , Time.millisToPosix 253402300799999 |> Iso8601.fromPosix |> Expect.equal "9999-12-31T23:59:59.999Z"
+    , "1970-01-01T00:00:00.000Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 0 ) )
+    , "1970-12-31T23:59:59.999Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 31535999999 ) )
+    , "1971-01-01T00:00:00.000Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 31536000000 ) )
+    , "1971-12-31T23:59:59.999Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 63071999999 ) )
+    , "1972-01-01T00:00:00.000Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 63072000000 ) )
+    , "1972-12-31T23:59:59.999Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 94694399999 ) )
+    , "1999-01-01T00:00:00.000Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 915148800000 ) )
+    , "1999-12-31T23:59:59.999Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 946684799999 ) )
+    , "2999-01-01T00:00:00.000Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 32472144000000 ) )
+    , "2999-12-31T23:59:59.999Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 32503679999999 ) )
+    , "9999-01-01T00:00:00.000Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 253370764800000 ) )
+    , "9999-12-31T23:59:59.999Z" |> Iso8601.toPosix |> Expect.equal ( Just ( Time.millisToPosix 253402300799999 ) )
+    ]
+
+
+-- todo: gleiche auch ab mit `date +%s`
+
+
+type TestCase
+    = Iso8601Identity String
+    | Iso8601Inc String
+    | PosixTimeIdentity Time.Posix
+    | Example ( Array Expectation )
+
+
+type alias Failure =
+    { given : Maybe String
+    , description : String
+    , reason : Test.Runner.Failure.Reason
+    }
+
+
+type Result
+    = Failure { testCase : TestCase, failure : Failure }
+    | Success TestCase
+
+
+run : TestCase -> Expectation -> Result
+run testCase expectation =
+    when Test.Runner.getFailureReason expectation is
+        Just failure -> Failure { testCase = testCase, failure = failure }
+        Nothing -> Success testCase

@@ -1,0 +1,96 @@
+module App.Update exposing ( update )
+
+import App.Cmd
+import App.Model exposing ( Model )
+import App.Msg exposing ( Msg )
+import Random
+import Task
+import Time
+import Tracks.Expect
+import Tracks.Iso8601
+import Tracks.PosixTime
+
+
+type alias Update =
+    Model -> { model : Model, command : Cmd Msg }
+
+
+update : Msg -> Update
+update msg mdl =
+    when msg is
+        App.Msg.CollectTestResult r -> collectTestResult r mdl
+        App.Msg.NextTestCase args -> nextTestCase args mdl
+        App.Msg.TestPosixTimeIdentity pt -> testPosixTimeIdentity pt mdl
+        App.Msg.TestUtcTimestampIdentity ts -> testUtcTimestampIdentity ts mdl
+        App.Msg.TestUtcTimestampInc ts -> testUtcTimestampInc ts mdl
+
+
+collectTestResult : Tracks.Expect.Result -> Update
+collectTestResult r mdl =
+    { model =
+        when r is
+            Tracks.Expect.Success _ -> mdl
+            Tracks.Expect.Failure args -> { mdl | failures = Array.pushLast args.failure mdl.failures }
+
+    , command =
+        let
+            testCase =
+                when r is
+                    Tracks.Expect.Success tc -> tc
+                    Tracks.Expect.Failure args -> args.testCase
+        in
+            Random.int 99999999999 999999999999
+            |> Random.generate ( \ step -> App.Msg.NextTestCase { testCase = testCase, step = step } )
+    }
+
+
+nextTestCase : { testCase : Tracks.Expect.TestCase, step : Int } -> Update
+nextTestCase args mdl =
+    { model = mdl
+    , command =
+        when args.testCase is
+            Tracks.Expect.PosixTimeIdentity pt ->
+                when Tracks.PosixTime.inc args.step pt is
+                    Just nextPt -> App.Cmd.testPosixTimeIdentity mdl.env.stdout nextPt
+                    Nothing -> App.Cmd.testUtcTimestampIdentity mdl.env.stdout Tracks.Iso8601.minValue
+
+            Tracks.Expect.Iso8601Identity ts ->
+                when Tracks.Iso8601.inc args.step ts is
+                    Just nextTs -> App.Cmd.testUtcTimestampIdentity mdl.env.stdout nextTs
+                    Nothing -> App.Cmd.testUtcTimestampInc mdl.env.stdout Tracks.Iso8601.minValue
+
+            Tracks.Expect.Iso8601Inc ts ->
+                when Tracks.Iso8601.inc args.step ts is
+                    Just nextTs -> App.Cmd.testUtcTimestampInc mdl.env.stdout nextTs
+                    Nothing -> App.Cmd.testExamples mdl.env.stdout Tracks.Expect.examples
+
+            Tracks.Expect.Example expectations ->
+                when Array.popFirst expectations is
+                    Just { first, rest } ->
+                        if not ( Array.isEmpty rest )
+                        then App.Cmd.testExamples mdl.env.stdout rest
+                        else App.Cmd.printTestResults mdl.env.stdout mdl.failures
+                    Nothing ->
+                        App.Cmd.printTestResults mdl.env.stdout mdl.failures
+    }
+
+
+testPosixTimeIdentity : Time.Posix -> Update
+testPosixTimeIdentity pt mdl =
+    { model = mdl
+    , command = App.Cmd.testPosixTimeIdentity mdl.env.stdout pt
+    }
+
+
+testUtcTimestampIdentity : String -> Update
+testUtcTimestampIdentity ts mdl =
+    { model = mdl
+    , command = App.Cmd.testUtcTimestampIdentity mdl.env.stdout ts
+    }
+
+
+testUtcTimestampInc : String -> Update
+testUtcTimestampInc ts mdl =
+    { model = mdl
+    , command = App.Cmd.testUtcTimestampInc mdl.env.stdout ts
+    }

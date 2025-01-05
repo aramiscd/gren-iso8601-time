@@ -1,0 +1,12 @@
+module Iso8601.Random exposing ( gen )
+
+import DateTime
+import DateTime.Random
+import Random
+
+
+gen : Random.Generator String
+gen =
+    Random.map DateTime.toIso8601 DateTime.Random.gen
+
+

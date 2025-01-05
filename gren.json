@@ -1,0 +1,15 @@
+{ "type" : "package"
+, "platform" : "common"
+, "name" : "aramiscd/gren-iso8601-time"
+, "summary" : "Convert between ISO 8601 UTC timestamps and Time.Posix values"
+, "license" : "BSD-3-Clause"
+, "version" : "1.0.0"
+, "exposed-modules" :
+    [ "Iso8601"
+    ]
+, "gren-version" : "0.5.0 <= v < 0.6.0"
+, "dependencies" :
+    { "aramiscd/gren-parse" : "1.3.0 <= v < 2.0.0"
+    , "gren-lang/core" : "6.0.0 <= v < 7.0.0"
+    }
+}

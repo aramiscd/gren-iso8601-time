@@ -1,0 +1,31 @@
+module Tracks.PosixTime exposing ( minValue, maxValue, inc, printProgress )
+
+import Math
+import Time
+
+
+minValue : Time.Posix
+minValue =
+    Time.millisToPosix 0
+
+
+maxValue : Time.Posix
+maxValue =
+    Time.millisToPosix 253402300799999
+
+
+inc : Int -> Time.Posix -> Maybe Time.Posix
+inc n tp =
+    if Time.posixToMillis tp + n < Time.posixToMillis maxValue
+    then Just <| Time.millisToPosix <| Time.posixToMillis tp + n
+    else Nothing
+
+
+printProgress : Time.Posix -> String
+printProgress pt =
+    toFloat ( Time.posixToMillis pt ) / toFloat ( Time.posixToMillis maxValue )
+    |> (*) 100
+    |> Math.round
+    |> toFloat
+    |> ( \ x -> String.fromFloat x ++ "%" )
+    |> String.padLeft 3 ' '

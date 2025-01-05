@@ -1,0 +1,46 @@
+module Iso8601 exposing ( fromPosix, toPosix )
+
+{-| Convert between
+[ISO 8601](https://en.wikipedia.org/wiki/ISO_8601)
+UTC timestamps and
+[Time.Posix](https://packages.gren-lang.org/package/gren-lang/core/version/latest/module/Time#Posix)
+values.
+
+---
+
+@docs fromPosix
+
+---
+
+@docs toPosix
+
+-}
+
+import DateTime
+import Time
+
+
+{-| Turn a
+[Time.Posix](https://packages.gren-lang.org/package/gren-lang/core/version/latest/module/Time#Posix)
+value into an
+[ISO 8601](https://en.wikipedia.org/wiki/ISO_8601)
+UTC timestamp.
+-}
+fromPosix : Time.Posix -> String
+fromPosix pt =
+    pt
+    |> DateTime.fromPosix
+    |> DateTime.toIso8601
+
+
+{-| Turn an
+[ISO 8601](https://en.wikipedia.org/wiki/ISO_8601)
+UTC timestamp into a
+[Time.Posix](https://packages.gren-lang.org/package/gren-lang/core/version/latest/module/Time#Posix)
+value.
+-}
+toPosix : String -> Maybe Time.Posix
+toPosix ts =
+    ts
+    |> DateTime.fromIso8601
+    |> Maybe.map DateTime.toPosix
