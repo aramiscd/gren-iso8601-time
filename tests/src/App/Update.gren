@@ -4,7 +4,6 @@ import App.Cmd
 import App.Model exposing ( Model )
 import App.Msg exposing ( Msg )
 import Random
-import Task
 import Time
 import Tracks.Expect
 import Tracks.Iso8601
