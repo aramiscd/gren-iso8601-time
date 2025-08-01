@@ -11,7 +11,7 @@ module DateTime exposing
     )
 
 import Math exposing ( modBy )
-import Parse exposing ( Parser )
+import StringParser as Parse exposing ( Parser )
 import Time
 
 
